@@ -51,6 +51,13 @@ export interface SimulationParams {
   rentInsuranceMonthly: number;
 }
 
+export interface SavedScenario {
+  id: string;
+  name: string;
+  date: string; // ISO string
+  params: SimulationParams;
+}
+
 export interface YearlyResult {
   year: number;
   // Buy Data

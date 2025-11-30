@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { calculateSimulation } from './services/calculator';
 import { generateFinancialAnalysis } from './services/geminiService';
-import { SimulationParams, SimulationResult } from './types';
+import { SimulationParams, SimulationResult, SavedScenario } from './types';
 import { DEFAULT_PARAMS } from './constants';
 import { InputGroup, NumberInput, Toggle } from './components/InputSection';
 import { NetWorthChart, EquityChart, MortgageScheduleChart } from './components/Charts';
@@ -14,6 +14,19 @@ const App: React.FC = () => {
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
   const [activeTab, setActiveTab] = useState<'input' | 'results'>('input'); 
+  const [savedScenarios, setSavedScenarios] = useState<SavedScenario[]>([]);
+
+  // Load scenarios from local storage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('rentVsBuyScenarios');
+    if (saved) {
+      try {
+        setSavedScenarios(JSON.parse(saved));
+      } catch (e) {
+        console.error("Failed to parse saved scenarios", e);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const res = calculateSimulation(params);
@@ -42,6 +55,86 @@ const App: React.FC = () => {
       ...prev,
       [parent]: { ...prev[parent], [key]: value }
     }));
+  };
+
+  // --- Actions: Reset, Save, Delete, Export ---
+
+  const handleReset = () => {
+    if (window.confirm("Are you sure you want to reset all inputs to default values?")) {
+      setParams(DEFAULT_PARAMS);
+    }
+  };
+
+  const handleSaveScenario = () => {
+    const name = window.prompt("Enter a name for this scenario:", `Scenario ${new Date().toLocaleDateString()}`);
+    if (!name) return;
+
+    const newScenario: SavedScenario = {
+      id: Date.now().toString(),
+      name,
+      date: new Date().toISOString(),
+      params: { ...params }
+    };
+
+    const updated = [newScenario, ...savedScenarios];
+    setSavedScenarios(updated);
+    localStorage.setItem('rentVsBuyScenarios', JSON.stringify(updated));
+  };
+
+  const handleLoadScenario = (scenario: SavedScenario) => {
+    if (window.confirm(`Load scenario "${scenario.name}"? Unsaved changes will be lost.`)) {
+      setParams(scenario.params);
+    }
+  };
+
+  const handleDeleteScenario = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (window.confirm("Delete this saved scenario?")) {
+      const updated = savedScenarios.filter(s => s.id !== id);
+      setSavedScenarios(updated);
+      localStorage.setItem('rentVsBuyScenarios', JSON.stringify(updated));
+    }
+  };
+
+  const handleExportCSV = () => {
+    // Construct CSV content
+    const headers = [
+      "Year",
+      "Home Value",
+      "Mortgage Balance",
+      "Equity",
+      "Buy Scenario Net Worth",
+      "Rent Scenario Portfolio",
+      "Rent Scenario Net Worth",
+      "Interest Paid (Yearly)",
+      "Principal Paid (Yearly)",
+      "Rent Paid (Yearly)"
+    ];
+
+    const rows = result.yearlyData.map(row => [
+      row.year,
+      row.homeValue.toFixed(2),
+      row.mortgageBalance.toFixed(2),
+      row.equity.toFixed(2),
+      row.buyTotalNetWorth.toFixed(2),
+      row.rentScenarioPortfolio.toFixed(2),
+      row.rentTotalNetWorth.toFixed(2),
+      row.yearlyInterestPaid.toFixed(2),
+      row.yearlyPrincipalPaid.toFixed(2),
+      row.rentCost.toFixed(2)
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," 
+      + headers.join(",") + "\n" 
+      + rows.map(e => e.join(",")).join("\n");
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "rent_vs_buy_simulation.csv");
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const formatCurrency = (val: number) => 
@@ -80,8 +173,27 @@ const App: React.FC = () => {
       <main className="flex-grow max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row gap-8">
         
         {/* Sidebar Inputs */}
-        <div className={`w-full md:w-96 flex-shrink-0 space-y-8 ${activeTab === 'input' ? 'block' : 'hidden md:block'}`}>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 overflow-y-auto max-h-[calc(100vh-8rem)] custom-scrollbar">
+        <div className={`w-full md:w-96 flex-shrink-0 space-y-6 ${activeTab === 'input' ? 'block' : 'hidden md:block'}`}>
+          
+          {/* Action Bar */}
+          <div className="flex gap-2">
+            <button 
+              onClick={handleReset}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-red-600 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              Reset
+            </button>
+            <button 
+              onClick={handleSaveScenario}
+              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+              Save
+            </button>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 overflow-y-auto max-h-[calc(100vh-16rem)] custom-scrollbar">
             <h2 className="text-lg font-bold text-slate-900 mb-6 border-b border-slate-100 pb-4">Configuration</h2>
             
             <InputGroup label="Timeline & Market">
@@ -177,11 +289,47 @@ const App: React.FC = () => {
             </InputGroup>
 
           </div>
+
+          {/* Saved Scenarios List */}
+          {savedScenarios.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Saved Scenarios</h3>
+              <div className="space-y-2">
+                {savedScenarios.map(scenario => (
+                  <div key={scenario.id} className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-slate-300 bg-slate-50 transition-colors group">
+                    <div onClick={() => handleLoadScenario(scenario)} className="flex-1 cursor-pointer">
+                      <p className="text-sm font-semibold text-slate-700">{scenario.name}</p>
+                      <p className="text-xs text-slate-500">{new Date(scenario.date).toLocaleDateString()}</p>
+                    </div>
+                    <button 
+                      onClick={(e) => handleDeleteScenario(scenario.id, e)}
+                      className="p-1.5 text-slate-400 hover:text-red-600 rounded-md hover:bg-white transition-colors opacity-0 group-hover:opacity-100"
+                      title="Delete Scenario"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Results Area */}
         <div className={`flex-grow space-y-6 ${activeTab === 'results' ? 'block' : 'hidden md:block'}`}>
           
+          {/* Results Header */}
+          <div className="flex justify-between items-center mb-2">
+             <h2 className="text-lg font-bold text-slate-900">Simulation Results</h2>
+             <button 
+               onClick={handleExportCSV}
+               className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+             >
+               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+               Export Excel (CSV)
+             </button>
+          </div>
+
           {/* KPI Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* BUY CARD */}
