@@ -17,18 +17,20 @@ import { YearlyResult, MonthlyResult } from '../types';
 
 interface ChartProps {
   data: YearlyResult[];
+  id?: string;
 }
 
 interface MonthlyChartProps {
   data: MonthlyResult[];
+  id?: string;
 }
 
 const formatCurrency = (value: number) => 
   new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR', maximumSignificantDigits: 3 }).format(value);
 
-export const NetWorthChart: React.FC<ChartProps> = ({ data }) => {
+export const NetWorthChart: React.FC<ChartProps> = ({ data, id }) => {
   return (
-    <div className="h-80 w-full">
+    <div className="h-80 w-full" id={id}>
       <h3 className="text-lg font-bold text-slate-800 mb-4">Net Worth Projection</h3>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart
@@ -88,9 +90,9 @@ export const NetWorthChart: React.FC<ChartProps> = ({ data }) => {
   );
 };
 
-export const EquityChart: React.FC<ChartProps> = ({ data }) => {
+export const EquityChart: React.FC<ChartProps> = ({ data, id }) => {
   return (
-    <div className="h-80 w-full mt-8">
+    <div className="h-80 w-full mt-8" id={id}>
       <h3 className="text-lg font-bold text-slate-800 mb-4">Asset Breakdown</h3>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart
@@ -125,9 +127,9 @@ export const EquityChart: React.FC<ChartProps> = ({ data }) => {
   );
 };
 
-export const MortgageScheduleChart: React.FC<MonthlyChartProps> = ({ data }) => {
+export const MortgageScheduleChart: React.FC<MonthlyChartProps> = ({ data, id }) => {
   return (
-    <div className="h-80 w-full mt-8">
+    <div className="h-80 w-full mt-8" id={id}>
       <h3 className="text-lg font-bold text-slate-800 mb-4">Mortgage Amortization Schedule (Monthly)</h3>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart

@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { calculateSimulation } from './services/calculator';
 import { generateFinancialAnalysis } from './services/geminiService';
-import { SimulationParams, SimulationResult, SavedScenario } from './types';
+import { generateExcelReport } from './services/excelExport';
+import { SimulationParams, SimulationResult } from './types';
 import { DEFAULT_PARAMS } from './constants';
 import { InputGroup, NumberInput, Toggle } from './components/InputSection';
 import { NetWorthChart, EquityChart, MortgageScheduleChart } from './components/Charts';
@@ -13,20 +13,8 @@ const App: React.FC = () => {
   const [result, setResult] = useState<SimulationResult>(calculateSimulation(DEFAULT_PARAMS));
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [loadingAi, setLoadingAi] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [activeTab, setActiveTab] = useState<'input' | 'results'>('input'); 
-  const [savedScenarios, setSavedScenarios] = useState<SavedScenario[]>([]);
-
-  // Load scenarios from local storage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem('rentVsBuyScenarios');
-    if (saved) {
-      try {
-        setSavedScenarios(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to parse saved scenarios", e);
-      }
-    }
-  }, []);
 
   useEffect(() => {
     const res = calculateSimulation(params);
@@ -57,166 +45,16 @@ const App: React.FC = () => {
     }));
   };
 
-  // --- Actions: Reset, Save, Delete, Export ---
-
-  const handleReset = () => {
-    if (window.confirm("Are you sure you want to reset all inputs to default values?")) {
-      setParams(DEFAULT_PARAMS);
+  const handleExportExcel = async () => {
+    setIsExporting(true);
+    try {
+      await generateExcelReport(params, result);
+    } catch (e) {
+      console.error("Export failed", e);
+      alert("Failed to generate Excel report. See console for details.");
+    } finally {
+      setIsExporting(false);
     }
-  };
-
-  const handleSaveScenario = () => {
-    const name = window.prompt("Enter a name for this scenario:", `Scenario ${new Date().toLocaleDateString()}`);
-    if (!name) return;
-
-    const newScenario: SavedScenario = {
-      id: Date.now().toString(),
-      name,
-      date: new Date().toISOString(),
-      params: { ...params }
-    };
-
-    const updated = [newScenario, ...savedScenarios];
-    setSavedScenarios(updated);
-    localStorage.setItem('rentVsBuyScenarios', JSON.stringify(updated));
-  };
-
-  const handleLoadScenario = (scenario: SavedScenario) => {
-    if (window.confirm(`Load scenario "${scenario.name}"? Unsaved changes will be lost.`)) {
-      setParams(scenario.params);
-    }
-  };
-
-  const handleDeleteScenario = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (window.confirm("Delete this saved scenario?")) {
-      const updated = savedScenarios.filter(s => s.id !== id);
-      setSavedScenarios(updated);
-      localStorage.setItem('rentVsBuyScenarios', JSON.stringify(updated));
-    }
-  };
-
-  const handleExportCSV = () => {
-    // 1. Simulation Summary Section
-    const summaryRows = [
-      ["SIMULATION RESULTS SUMMARY"],
-      ["Metric", "Value"],
-      ["Final Buying Net Worth", result.summary.finalNetWorthBuy.toFixed(2)],
-      ["Final Renting Net Worth", result.summary.finalNetWorthRent.toFixed(2)],
-      ["Initial Cash Outlay", result.summary.initialOutlay.toFixed(2)],
-      ["Total Interest Paid", result.summary.totalInterestPaid.toFixed(2)],
-      ["Total Principal Paid", result.summary.totalPrincipalPaid.toFixed(2)],
-      ["Total Rent Paid", result.summary.totalRentPaid.toFixed(2)],
-      [] // Blank line
-    ];
-
-    // 2. User Inputs Section
-    const inputsRows = [
-      ["USER INPUTS PARAMETERS"],
-      ["Parameter", "Value"],
-      ["Duration (Years)", params.years],
-      ["Inflation Rate (%)", params.inflationRate],
-      ["Investment Return Rate (%)", params.investmentReturnRate],
-      ["Capital Gains Tax Rate (%)", params.capitalGainsTaxRate],
-      ["Home Price", params.homePrice],
-      ["Down Payment (%)", params.downPaymentPercent],
-      ["Buying Closing Costs (%)", params.closingCostsPercent],
-      ["Selling Closing Costs (%)", params.sellingCostsPercent],
-      ["Home Appreciation Rate (%)", params.homeAppreciationRate],
-      ["Property Tax Rate (%)", params.propertyTaxRate],
-      ["Maintenance Cost (%)", params.maintenanceCostYearly],
-      ["Home Insurance (Yearly)", params.homeInsuranceYearly],
-      ["Marginal Tax Rate (%)", params.marginalTaxRate],
-      ["House Hacking (Rent Out Part)", params.rentOutPart],
-      ["House Hacking Income (Monthly)", params.rentOutIncome],
-      ["Mortgage 1 Rate (%)", params.mortgage1.interestRate],
-      ["Mortgage 1 Term (Years)", params.mortgage1.termYears],
-      ["Use Mortgage 2", params.useMortgage2],
-      ["Mortgage 2 Amount", params.mortgage2.amount],
-      ["Mortgage 2 Rate (%)", params.mortgage2.interestRate],
-      ["Mortgage 2 Term (Years)", params.mortgage2.termYears],
-      ["Use PTZ Loan", params.usePtz],
-      ["PTZ Amount", params.ptzAmount],
-      ["PTZ Term", params.ptzTermYears],
-      ["Monthly Rent", params.monthlyRent],
-      ["Renters Insurance (Monthly)", params.rentInsuranceMonthly],
-      ["Use Salary Budget Strategy", params.useSalaryBasedBudget],
-      ["Monthly Salary", params.monthlySalary],
-      ["Salary Growth Rate (%)", params.salaryGrowthRate],
-      ["Housing Allocation (%)", params.housingBudgetPercent],
-      ["Allocation Annual Increase (%)", params.housingBudgetPercentAnnualIncrease],
-      ["Pay Down Mortgage Early", params.payDownMortgageEarly],
-      [] // Blank line
-    ];
-
-    // 3. Yearly Data Section (Source for Graphs)
-    const yearlyHeader = [
-      "YEARLY DATA (NET WORTH & EQUITY CHARTS)",
-      "", "", "", "", "", "", "", "", "", ""
-    ];
-    const yearlyColHeaders = [
-      "Year",
-      "Home Value",
-      "Mortgage Balance",
-      "Equity",
-      "Buy Portfolio (Net)",
-      "Rent Portfolio (Net)",
-      "Buy Net Worth",
-      "Rent Net Worth",
-      "Interest Paid (Yearly)",
-      "Principal Paid (Yearly)",
-      "Rent Paid (Yearly)"
-    ];
-
-    const yearlyDataRows = result.yearlyData.map(row => [
-      row.year,
-      row.homeValue.toFixed(2),
-      row.mortgageBalance.toFixed(2),
-      row.equity.toFixed(2),
-      row.buyScenarioPortfolio.toFixed(2),
-      row.rentScenarioPortfolio.toFixed(2),
-      row.buyTotalNetWorth.toFixed(2),
-      row.rentTotalNetWorth.toFixed(2),
-      row.yearlyInterestPaid.toFixed(2),
-      row.yearlyPrincipalPaid.toFixed(2),
-      row.rentCost.toFixed(2)
-    ]);
-
-    // 4. Monthly Data Section (Source for Mortgage Schedule)
-    const monthlyHeader = [
-      [],
-      ["MONTHLY DATA (MORTGAGE SCHEDULE CHART)"],
-      ["Month", "Interest Paid", "Principal Paid", "Total Mortgage Balance"]
-    ];
-
-    const monthlyDataRows = result.monthlyData.map(row => [
-      row.month,
-      row.interestPaid.toFixed(2),
-      row.principalPaid.toFixed(2),
-      row.balance.toFixed(2)
-    ]);
-
-    // Combine all sections
-    const allRows = [
-      ...summaryRows,
-      ...inputsRows,
-      yearlyHeader,
-      yearlyColHeaders,
-      ...yearlyDataRows,
-      ...monthlyHeader,
-      ...monthlyDataRows
-    ];
-
-    const csvContent = "data:text/csv;charset=utf-8," 
-      + allRows.map(e => e.join(",")).join("\n");
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `rent_vs_buy_${new Date().toISOString().slice(0,10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   const formatCurrency = (val: number) => 
@@ -257,25 +95,7 @@ const App: React.FC = () => {
         {/* Sidebar Inputs */}
         <div className={`w-full md:w-96 flex-shrink-0 space-y-6 ${activeTab === 'input' ? 'block' : 'hidden md:block'}`}>
           
-          {/* Action Bar */}
-          <div className="flex gap-2">
-            <button 
-              onClick={handleReset}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-red-600 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-              Reset
-            </button>
-            <button 
-              onClick={handleSaveScenario}
-              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-50 hover:text-blue-600 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
-              Save
-            </button>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 overflow-y-auto max-h-[calc(100vh-16rem)] custom-scrollbar">
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 overflow-y-auto max-h-[calc(100vh-8rem)] custom-scrollbar">
             <h2 className="text-lg font-bold text-slate-900 mb-6 border-b border-slate-100 pb-4">Configuration</h2>
             
             <InputGroup label="Timeline & Market">
@@ -371,30 +191,6 @@ const App: React.FC = () => {
             </InputGroup>
 
           </div>
-
-          {/* Saved Scenarios List */}
-          {savedScenarios.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">Saved Scenarios</h3>
-              <div className="space-y-2">
-                {savedScenarios.map(scenario => (
-                  <div key={scenario.id} className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-slate-300 bg-slate-50 transition-colors group">
-                    <div onClick={() => handleLoadScenario(scenario)} className="flex-1 cursor-pointer">
-                      <p className="text-sm font-semibold text-slate-700">{scenario.name}</p>
-                      <p className="text-xs text-slate-500">{new Date(scenario.date).toLocaleDateString()}</p>
-                    </div>
-                    <button 
-                      onClick={(e) => handleDeleteScenario(scenario.id, e)}
-                      className="p-1.5 text-slate-400 hover:text-red-600 rounded-md hover:bg-white transition-colors opacity-0 group-hover:opacity-100"
-                      title="Delete Scenario"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Results Area */}
@@ -404,11 +200,21 @@ const App: React.FC = () => {
           <div className="flex justify-between items-center mb-2">
              <h2 className="text-lg font-bold text-slate-900">Simulation Results</h2>
              <button 
-               onClick={handleExportCSV}
-               className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
+               onClick={handleExportExcel}
+               disabled={isExporting}
+               className="flex items-center gap-2 px-3 py-1.5 bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white rounded-lg text-sm font-medium transition-colors shadow-sm"
              >
-               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-               Export Excel (CSV)
+               {isExporting ? (
+                 <>
+                   <svg className="animate-spin w-4 h-4 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                   Creating XLSX...
+                 </>
+               ) : (
+                 <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    Export Excel (.xlsx)
+                 </>
+               )}
              </button>
           </div>
 
@@ -465,15 +271,15 @@ const App: React.FC = () => {
 
           {/* Main Charts */}
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <NetWorthChart data={result.yearlyData} />
+            <NetWorthChart data={result.yearlyData} id="net-worth-chart" />
           </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <EquityChart data={result.yearlyData} />
+            <EquityChart data={result.yearlyData} id="equity-chart" />
           </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <MortgageScheduleChart data={result.monthlyData} />
+            <MortgageScheduleChart data={result.monthlyData} id="mortgage-schedule-chart" />
           </div>
 
           {/* AI Analysis Section */}
