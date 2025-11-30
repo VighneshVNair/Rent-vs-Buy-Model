@@ -4,7 +4,7 @@ import { generateFinancialAnalysis } from './services/geminiService';
 import { generateExcelReport } from './services/excelExport';
 import { SimulationParams, SimulationResult } from './types';
 import { DEFAULT_PARAMS } from './constants';
-import { InputGroup, NumberInput, Toggle } from './components/InputSection';
+import { InputGroup, NumberInput, Toggle, TextArea } from './components/InputSection';
 import { NetWorthChart, EquityChart, MortgageScheduleChart } from './components/Charts';
 import ReactMarkdown from 'react-markdown';
 
@@ -15,6 +15,8 @@ const App: React.FC = () => {
   const [loadingAi, setLoadingAi] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [activeTab, setActiveTab] = useState<'input' | 'results'>('input'); 
+  const [copyFeedback, setCopyFeedback] = useState("Copy Configuration");
+  const [importString, setImportString] = useState("");
 
   useEffect(() => {
     const res = calculateSimulation(params);
@@ -54,6 +56,29 @@ const App: React.FC = () => {
       alert("Failed to generate Excel report. See console for details.");
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const handleCopyConfig = () => {
+    const config = JSON.stringify(params);
+    navigator.clipboard.writeText(config).then(() => {
+      setCopyFeedback("Copied!");
+      setTimeout(() => setCopyFeedback("Copy Configuration"), 2000);
+    });
+  };
+
+  const handleImportConfig = (val: string) => {
+    setImportString(val);
+    try {
+      if (!val) return;
+      const parsed = JSON.parse(val);
+      if (parsed && typeof parsed === 'object' && 'years' in parsed && 'homePrice' in parsed) {
+        setParams(prev => ({ ...DEFAULT_PARAMS, ...parsed }));
+        setImportString(""); // Clear input on success to indicate consumption
+        alert("Configuration imported successfully!");
+      }
+    } catch (e) {
+      // Allow user to keep typing if invalid JSON
     }
   };
 
@@ -188,6 +213,21 @@ const App: React.FC = () => {
              <InputGroup label="Renting Details">
               <NumberInput label="Monthly Rent" value={params.monthlyRent} onChange={v => updateParam('monthlyRent', v)} prefix="€" step={50} />
               <NumberInput label="Renters Insurance" value={params.rentInsuranceMonthly} onChange={v => updateParam('rentInsuranceMonthly', v)} prefix="€" />
+            </InputGroup>
+
+            <InputGroup label="Share / Save">
+              <button 
+                onClick={handleCopyConfig}
+                className="w-full py-2 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-md text-sm font-medium transition-colors mb-3"
+              >
+                {copyFeedback}
+              </button>
+              <TextArea 
+                label="Import Configuration"
+                value={importString}
+                onChange={handleImportConfig}
+                placeholder="Paste config string here to auto-import..."
+              />
             </InputGroup>
 
           </div>

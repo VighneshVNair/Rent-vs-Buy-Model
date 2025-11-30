@@ -75,3 +75,22 @@ export const Toggle: React.FC<ToggleProps> = ({ label, checked, onChange }) => (
     </button>
   </div>
 );
+
+interface TextAreaProps {
+  label: string;
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+}
+
+export const TextArea: React.FC<TextAreaProps> = ({ label, value, onChange, placeholder }) => (
+  <div className="flex flex-col">
+    <label className="text-sm font-medium text-slate-700 mb-1.5">{label}</label>
+    <textarea
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="block w-full rounded-md border-0 py-2 text-black bg-white ring-1 ring-inset ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-blue-600 sm:text-sm sm:leading-6 shadow-sm min-h-[80px]"
+    />
+  </div>
+);
