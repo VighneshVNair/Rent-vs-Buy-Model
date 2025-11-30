@@ -97,41 +97,123 @@ const App: React.FC = () => {
   };
 
   const handleExportCSV = () => {
-    // Construct CSV content
-    const headers = [
+    // 1. Simulation Summary Section
+    const summaryRows = [
+      ["SIMULATION RESULTS SUMMARY"],
+      ["Metric", "Value"],
+      ["Final Buying Net Worth", result.summary.finalNetWorthBuy.toFixed(2)],
+      ["Final Renting Net Worth", result.summary.finalNetWorthRent.toFixed(2)],
+      ["Initial Cash Outlay", result.summary.initialOutlay.toFixed(2)],
+      ["Total Interest Paid", result.summary.totalInterestPaid.toFixed(2)],
+      ["Total Principal Paid", result.summary.totalPrincipalPaid.toFixed(2)],
+      ["Total Rent Paid", result.summary.totalRentPaid.toFixed(2)],
+      [] // Blank line
+    ];
+
+    // 2. User Inputs Section
+    const inputsRows = [
+      ["USER INPUTS PARAMETERS"],
+      ["Parameter", "Value"],
+      ["Duration (Years)", params.years],
+      ["Inflation Rate (%)", params.inflationRate],
+      ["Investment Return Rate (%)", params.investmentReturnRate],
+      ["Capital Gains Tax Rate (%)", params.capitalGainsTaxRate],
+      ["Home Price", params.homePrice],
+      ["Down Payment (%)", params.downPaymentPercent],
+      ["Buying Closing Costs (%)", params.closingCostsPercent],
+      ["Selling Closing Costs (%)", params.sellingCostsPercent],
+      ["Home Appreciation Rate (%)", params.homeAppreciationRate],
+      ["Property Tax Rate (%)", params.propertyTaxRate],
+      ["Maintenance Cost (%)", params.maintenanceCostYearly],
+      ["Home Insurance (Yearly)", params.homeInsuranceYearly],
+      ["Marginal Tax Rate (%)", params.marginalTaxRate],
+      ["House Hacking (Rent Out Part)", params.rentOutPart],
+      ["House Hacking Income (Monthly)", params.rentOutIncome],
+      ["Mortgage 1 Rate (%)", params.mortgage1.interestRate],
+      ["Mortgage 1 Term (Years)", params.mortgage1.termYears],
+      ["Use Mortgage 2", params.useMortgage2],
+      ["Mortgage 2 Amount", params.mortgage2.amount],
+      ["Mortgage 2 Rate (%)", params.mortgage2.interestRate],
+      ["Mortgage 2 Term (Years)", params.mortgage2.termYears],
+      ["Use PTZ Loan", params.usePtz],
+      ["PTZ Amount", params.ptzAmount],
+      ["PTZ Term", params.ptzTermYears],
+      ["Monthly Rent", params.monthlyRent],
+      ["Renters Insurance (Monthly)", params.rentInsuranceMonthly],
+      ["Use Salary Budget Strategy", params.useSalaryBasedBudget],
+      ["Monthly Salary", params.monthlySalary],
+      ["Salary Growth Rate (%)", params.salaryGrowthRate],
+      ["Housing Allocation (%)", params.housingBudgetPercent],
+      ["Allocation Annual Increase (%)", params.housingBudgetPercentAnnualIncrease],
+      ["Pay Down Mortgage Early", params.payDownMortgageEarly],
+      [] // Blank line
+    ];
+
+    // 3. Yearly Data Section (Source for Graphs)
+    const yearlyHeader = [
+      "YEARLY DATA (NET WORTH & EQUITY CHARTS)",
+      "", "", "", "", "", "", "", "", "", ""
+    ];
+    const yearlyColHeaders = [
       "Year",
       "Home Value",
       "Mortgage Balance",
       "Equity",
-      "Buy Scenario Net Worth",
-      "Rent Scenario Portfolio",
-      "Rent Scenario Net Worth",
+      "Buy Portfolio (Net)",
+      "Rent Portfolio (Net)",
+      "Buy Net Worth",
+      "Rent Net Worth",
       "Interest Paid (Yearly)",
       "Principal Paid (Yearly)",
       "Rent Paid (Yearly)"
     ];
 
-    const rows = result.yearlyData.map(row => [
+    const yearlyDataRows = result.yearlyData.map(row => [
       row.year,
       row.homeValue.toFixed(2),
       row.mortgageBalance.toFixed(2),
       row.equity.toFixed(2),
-      row.buyTotalNetWorth.toFixed(2),
+      row.buyScenarioPortfolio.toFixed(2),
       row.rentScenarioPortfolio.toFixed(2),
+      row.buyTotalNetWorth.toFixed(2),
       row.rentTotalNetWorth.toFixed(2),
       row.yearlyInterestPaid.toFixed(2),
       row.yearlyPrincipalPaid.toFixed(2),
       row.rentCost.toFixed(2)
     ]);
 
+    // 4. Monthly Data Section (Source for Mortgage Schedule)
+    const monthlyHeader = [
+      [],
+      ["MONTHLY DATA (MORTGAGE SCHEDULE CHART)"],
+      ["Month", "Interest Paid", "Principal Paid", "Total Mortgage Balance"]
+    ];
+
+    const monthlyDataRows = result.monthlyData.map(row => [
+      row.month,
+      row.interestPaid.toFixed(2),
+      row.principalPaid.toFixed(2),
+      row.balance.toFixed(2)
+    ]);
+
+    // Combine all sections
+    const allRows = [
+      ...summaryRows,
+      ...inputsRows,
+      yearlyHeader,
+      yearlyColHeaders,
+      ...yearlyDataRows,
+      ...monthlyHeader,
+      ...monthlyDataRows
+    ];
+
     const csvContent = "data:text/csv;charset=utf-8," 
-      + headers.join(",") + "\n" 
-      + rows.map(e => e.join(",")).join("\n");
+      + allRows.map(e => e.join(",")).join("\n");
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
     link.setAttribute("href", encodedUri);
-    link.setAttribute("download", "rent_vs_buy_simulation.csv");
+    link.setAttribute("download", `rent_vs_buy_${new Date().toISOString().slice(0,10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
