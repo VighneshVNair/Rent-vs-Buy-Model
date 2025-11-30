@@ -1,0 +1,5 @@
+{
+  "name": "Rent vs. Buy Equity Analyzer",
+  "description": "A sophisticated financial tool comparing the Net Present Value and Future Net Worth of buying a home with up to two mortgages versus renting and investing the difference, powered by Gemini AI for personalized financial insights.",
+  "requestFramePermissions": []
+}
